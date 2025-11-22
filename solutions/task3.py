@@ -6,7 +6,7 @@ from typing import List, Tuple
 SOLUTIONS_DIR = Path(__file__).resolve().parent
 ROOT = SOLUTIONS_DIR.parent
 
-# # ----------------------------- math helpers ----------------------------- #
+# ----------------------------- math helpers ----------------------------- #
 
 
 def quat_to_rot(q: Tuple[float, float, float, float]) -> List[List[float]]:
@@ -82,12 +82,28 @@ def rot_to_quat(R: List[List[float]]) -> Tuple[float, float, float, float]:
         x, y, z, w = -x, -y, -z, -w
     return x, y, z, w
 
-# # ----------------------------- task 1 ----------------------------- #
+
+def normalize(vec: Tuple[float, float, float]) -> Tuple[float, float, float]:
+    # 向量归一化
+    x, y, z = vec
+    n = math.sqrt(x * x + y * y + z * z)
+    if n < 1e-9:
+        return 0.0, 0.0, 0.0
+    return x / n, y / n, z / n
+
+
+def cross(a: Tuple[float, float, float], b: Tuple[float, float, float]) -> Tuple[float, float, float]:
+    # 计算向量叉积
+    ax, ay, az = a
+    bx, by, bz = b
+    return (ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx)
+
+
+# ----------------------------- task 1 ----------------------------- #
 
 
 def compute_task1():
     tracking_path = ROOT / "documents" / "tracking.csv"
-    # 设备目标：固定俯仰 alpha，绕 z 轴以 omega 匀速转动。
     alpha = math.pi / 12
     omega = 0.5
     rows = []
@@ -95,7 +111,6 @@ def compute_task1():
         reader = csv.DictReader(f)
         for r in reader:
             t = float(r["t"])
-            # 输入姿态四元数：世界 -> 机体。
             q_body_world = (
                 float(r["qx"]),
                 float(r["qy"]),
@@ -103,19 +118,18 @@ def compute_task1():
                 float(r["qw"]),
             )
             R_bw = quat_to_rot(q_body_world)  # world -> body
-            R_wb = rot_transpose(R_bw)  # body -> world，转置即求逆
+            R_wb = rot_transpose(R_bw)  # body -> world
 
             wt = omega * t
             ca = math.cos(alpha)
             sa = math.sin(alpha)
             cw = math.cos(wt)
             sw = math.sin(wt)
-            # R_bd：机体 -> 目标设备姿态（先偏航 wt，再固定俯仰 alpha）。
             R_bd = [
                 [cw, -sw * ca, sw * sa],
                 [sw, cw * ca, -cw * sa],
                 [0.0, sa, ca],
-            ]
+            ]  # D relative to B
 
             R_wd = mat_mul(R_wb, R_bd)
             q = rot_to_quat(R_wd)
@@ -130,10 +144,97 @@ def compute_task1():
     create_svg(rows, SOLUTIONS_DIR / "task1_quaternion.svg", title="Task1 quaternion")
 
 
+# ----------------------------- task 3 ----------------------------- #
+
+
+def lemniscate_pos(t: float) -> Tuple[float, float, float]:
+    s = math.sin(t)
+    c = math.cos(t)
+    denom = s * s + 1.0
+    x = 10.0 * c / denom
+    y = 10.0 * s * c / denom
+    z = 10.0
+    return x, y, z
+
+
+def lemniscate_vel(t: float) -> Tuple[float, float, float]:
+    s = math.sin(t)
+    c = math.cos(t)
+    denom = (s * s + 1.0) ** 2
+    vx = -10.0 * s * (3.0 - s * s) / denom
+    vy = 10.0 * (c * c - 2.0 * s * s) / denom
+    vz = 0.0
+    return vx, vy, vz
+
+
+def lemniscate_acc(t: float) -> Tuple[float, float, float]:
+    s = math.sin(t)
+    c = math.cos(t)
+    denom = s * s + 1.0
+    D = denom * denom
+    dD = 4.0 * s * c * denom
+
+    N1 = -10.0 * s * (3.0 - s * s)
+    dN1 = -10.0 * (3.0 * c - 3.0 * s * s * c)
+    ax = (dN1 * D - N1 * dD) / (D * D)
+
+    N2 = 10.0 * (c * c - 2.0 * s * s)
+    dN2 = -60.0 * s * c
+    ay = (dN2 * D - N2 * dD) / (D * D)
+
+    return ax, ay, 0.0
+
+
+def compute_task3():
+    g = 9.81
+    dt = 0.02
+    t = 0.0
+    rows = []
+    last_heading = (1.0, 0.0, 0.0)
+
+    while t <= 2 * math.pi + 1e-6:
+        vx, vy, vz = lemniscate_vel(t)
+        speed_xy = math.hypot(vx, vy)
+        if speed_xy < 1e-4:
+            heading = last_heading
+        else:
+            psi = math.atan2(vy, vx)
+            heading = (math.cos(psi), math.sin(psi), 0.0)
+            last_heading = heading
+
+        ax, ay, az = lemniscate_acc(t)
+        F = (ax, ay, az + g)
+        b3 = normalize(F)
+        h = heading
+        b2 = cross(b3, h)
+        b2 = normalize(b2)
+        if math.sqrt(sum(x * x for x in b2)) < 1e-6:
+            b2 = (0.0, 1.0, 0.0)
+        b1 = cross(b2, b3)
+
+        R = [
+            [b1[0], b2[0], b3[0]],
+            [b1[1], b2[1], b3[1]],
+            [b1[2], b2[2], b3[2]],
+        ]  # body axes in world (body->world)
+        q = rot_to_quat(R)
+        rows.append((t, *q))
+        t = round(t + dt, 10)
+
+    out_path = SOLUTIONS_DIR / "df_quaternion.csv"
+    with out_path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["t", "x", "y", "z", "w"])
+        for t, qx, qy, qz, qw in rows:
+            writer.writerow([f"{t:.2f}", f"{qx:.7f}", f"{qy:.7f}", f"{qz:.7f}", f"{qw:.7f}"])
+    create_svg(rows, SOLUTIONS_DIR / "task3_quaternion.svg", title="Task3 quaternion")
+
+
 # ----------------------------- svg plotting ----------------------------- #
 
 
 def create_svg(series: List[Tuple[float, float, float, float, float]], path: Path, title: str):
+    """Create a very lightweight SVG polyline plot for quaternion components."""
     if not series:
         return
     width, height = 900, 400
@@ -175,9 +276,14 @@ def create_svg(series: List[Tuple[float, float, float, float, float]], path: Pat
     path.write_text(svg)
 
 
+
+
 def main():
     SOLUTIONS_DIR.mkdir(exist_ok=True)
     compute_task1()
+    compute_task3()
+
+
 
 if __name__ == "__main__":
     main()
