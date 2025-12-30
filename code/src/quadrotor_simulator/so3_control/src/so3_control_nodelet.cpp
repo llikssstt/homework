@@ -100,8 +100,18 @@ SO3ControlNodelet::position_cmd_callback(
   des_acc_ = Eigen::Vector3d(cmd->acceleration.x, cmd->acceleration.y,
                              cmd->acceleration.z);
 
-  kx_ = Eigen::Vector3d(15.7, 8.7, 6.0);
-  kv_ = Eigen::Vector3d(6.4, 13.4, 4.0);
+  // 控制器增益参数调整 (PD控制器)
+  // kx_: 位置误差增益 (比例P)，控制位置跟踪的响应速度
+  // kv_: 速度误差增益 (微分D/阻尼)，抑制超调和振荡
+  // 
+  // 调参原则：
+  // 1. kx 越大响应越快，但过大会导致超调和振荡
+  // 2. kv 提供阻尼，kv ≈ 2*sqrt(kx) 接近临界阻尼
+  // 3. z方向通常需要更大的增益来克服重力
+  //
+  // 高增益参数以最小化RMSE：
+  kx_ = Eigen::Vector3d(12.0, 12.0, 10.0);
+  kv_ = Eigen::Vector3d(6.0, 6.0, 5.5);
 
   des_yaw_              = cmd->yaw;
   des_yaw_dot_          = cmd->yaw_dot;
