@@ -59,6 +59,7 @@ class Astarpath
 		Eigen::Vector3d getPosPoly( Eigen::MatrixXd polyCoeff, int k, double t );
 		int safeCheck( Eigen::MatrixXd polyCoeff, Eigen::VectorXd time);
 		double perpendicularDistance(const Eigen::Vector3d point_insert,const Eigen::Vector3d point_st,const Eigen::Vector3d point_end);
+		bool lineOfSight(const Eigen::Vector3d& start, const Eigen::Vector3d& end);
         void resetOccupy();
 };
 

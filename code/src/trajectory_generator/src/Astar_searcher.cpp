@@ -200,23 +200,34 @@ inline void Astarpath::AstarGetSucc(MappingNodePtr currentPtr,
 }
 
 double Astarpath::getHeu(MappingNodePtr node1, MappingNodePtr node2) {
-  
-  // 使用数字距离和一种类型的tie_breaker
-  double heu;
-  double tie_breaker;
-  
-  // 使用欧几里得距离作为启发式函数
-  double dx = node1->index(0) - node2->index(0);
-  double dy = node1->index(1) - node2->index(1);
-  double dz = node1->index(2) - node2->index(2);
-  heu = sqrt(dx * dx + dy * dy + dz * dz);
-  
-  // 添加 tie_breaker 避免对称路径问题，提高搜索效率
-  tie_breaker = 1.0 + 1.0 / 10000.0;
-  heu *= tie_breaker;
-  
-  return heu;
+    // 计算各轴索引差的绝对值
+    double dx = std::abs(node1->index(0) - node2->index(0));
+    double dy = std::abs(node1->index(1) - node2->index(1));
+    double dz = std::abs(node1->index(2) - node2->index(2));
+
+    double heu = 0.0;
+    
+    // 【推荐】使用 3D 对角线距离 (Diagonal Distance)
+    // 假设无人机可以在 3D 空间中进行 26 邻域移动
+    // 这种启发式比欧几里得距离更“紧致”(Tighter)，通常搜索速度更快
+    
+    double min_delta = std::min({dx, dy, dz});
+    double max_delta = std::max({dx, dy, dz});
+    double mid_delta = dx + dy + dz - min_delta - max_delta;
+
+    // 预计算的权重：
+    // (sqrt(3) - sqrt(2)) ≈ 0.317837
+    // (sqrt(2) - 1)       ≈ 0.414213
+    heu = 0.317837 * min_delta + 0.414213 * mid_delta + max_delta;
+
+    // Tie Breaker: 微小地打破对称性，倾向于深度优先，加快收敛
+    // p 值的选择通常设为：1.0 / 期望的最大路径长度 (例如地图尺寸)
+    //double tie_breaker = 1.0 + 1.0 / 10000.0; 
+    
+    //return heu * tie_breaker;    
+    return heu * 1.2;
 }
+
 
 
 bool Astarpath::AstarSearch(Vector3d start_pt, Vector3d end_pt) {
@@ -356,59 +367,58 @@ vector<Vector3d> Astarpath::getPath() {
 }
 
 
+// Line-of-Sight 检测：检查两点之间是否有障碍物
+bool Astarpath::lineOfSight(const Vector3d& start, const Vector3d& end) {
+  Vector3d direction = end - start;
+  double distance = direction.norm();
+  
+  if (distance < 1e-6) return true;
+  
+  direction.normalize();
+  
+  // 使用较小的步长进行检测，确保不会穿过障碍物
+  double step_size = resolution * 0.5;
+  int num_steps = static_cast<int>(distance / step_size) + 1;
+  
+  for (int i = 0; i <= num_steps; i++) {
+    double t = static_cast<double>(i) / num_steps;
+    Vector3d point = start + t * (end - start);
+    Vector3i idx = coord2gridIndex(point);
+    
+    if (isOccupied(idx)) {
+      return false;  // 有障碍物，不可通行
+    }
+  }
+  return true;  // 无障碍物，可直接通行
+}
+
 std::vector<Vector3d> Astarpath::pathSimplify(const vector<Vector3d> &path,
                                                double path_resolution) {
-
-  //init
-  double dmax=0,d;
-  int index=0;
-  int end = path.size();
-  //1.计算距离首尾连成直线最大的点，并将点集从此处分开
-  for(int i=1;i<end-1;i++)
-  {
-    d=perpendicularDistance(path[i],path[0],path[end-1]);
-    if(d>dmax)
-    {
-      index=i;
-      dmax=d;
-    }
+  if (path.size() <= 2) {
+    return path;
   }
-  vector<Vector3d> subPath1;
-  int j = 0;
-  while(j<index+1){
-    subPath1.push_back(path[j]);
-    j++;
-  }
-  vector<Vector3d> subPath2;
-   while(j<int(path.size())){
-    subPath2.push_back(path[j]);
-    j++;
-  }
-  //2.拆分点集
-  vector<Vector3d> recPath1;
-  vector<Vector3d> recPath2;
-  vector<Vector3d> resultPath;
-  if(dmax>path_resolution)
-  {
-    recPath1=pathSimplify(subPath1,path_resolution);
-    recPath2=pathSimplify(subPath2,path_resolution);
-   for(int i=0;i<int(recPath1.size());i++){
-    resultPath.push_back(recPath1[i]);
-  }
-     for(int i=0;i<int(recPath2.size());i++){
-    resultPath.push_back(recPath2[i]);
-  }
-  }else{
-    if(path.size()>1){
-      resultPath.push_back(path[0]);
-      resultPath.push_back(path[end-1]);
-    }else{
-      resultPath.push_back(path[0]);
+  
+  vector<Vector3d> simplified_path;
+  simplified_path.push_back(path[0]);  // 保留起点
+  
+  size_t current = 0;
+  
+  while (current < path.size() - 1) {
+    // 尝试找到能直接到达的最远点
+    size_t farthest = current + 1;
+    
+    for (size_t i = path.size() - 1; i > current + 1; i--) {
+      if (lineOfSight(path[current], path[i])) {
+        farthest = i;
+        break;  // 找到最远的可直达点
+      }
     }
     
+    simplified_path.push_back(path[farthest]);
+    current = farthest;
   }
-
-  return resultPath;
+  
+  return simplified_path;
 }
 
 double Astarpath::perpendicularDistance(const Eigen::Vector3d point_insert,const Eigen:: Vector3d point_st,const Eigen::Vector3d point_end)
