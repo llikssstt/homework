@@ -225,7 +225,7 @@ double Astarpath::getHeu(MappingNodePtr node1, MappingNodePtr node2) {
     //double tie_breaker = 1.0 + 1.0 / 10000.0; 
     
     //return heu * tie_breaker;    
-    return heu * 1.2;
+    return heu;
 }
 
 

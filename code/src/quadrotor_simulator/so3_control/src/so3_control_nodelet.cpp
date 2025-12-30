@@ -110,8 +110,8 @@ SO3ControlNodelet::position_cmd_callback(
   // 3. z方向通常需要更大的增益来克服重力
   //
   // 高增益参数以最小化RMSE：
-  kx_ = Eigen::Vector3d(12.0, 12.0, 10.0);
-  kv_ = Eigen::Vector3d(6.0, 6.0, 5.5);
+  kx_ = Eigen::Vector3d(15.0, 15.0, 12.0);
+  kv_ = Eigen::Vector3d(7.5, 7.5, 6.5);
 
   des_yaw_              = cmd->yaw;
   des_yaw_dot_          = cmd->yaw_dot;
