@@ -415,21 +415,29 @@ VectorXd timeAllocation(MatrixXd Path) {
   double dist;
   const double t = _Vel / _Acc;
   const double d = 0.5 * _Acc * t * t;
-  //使用梯形曲线分配时间
- for(int i=0;i<int(time.size());i++)
- {
-   piece= Path.row(i+1)-Path.row(i);
-   dist = piece.norm();
-       if (dist < d + d)
+  
+  // 使用梯形曲线分配时间
+  for(int i=0;i<int(time.size());i++)
+  {
+    piece = Path.row(i+1) - Path.row(i);
+    dist = piece.norm();
+    
+    if (dist < d + d)
     {
-        time(i)= 2.0 * sqrt(dist / _Acc);
+        time(i) = 2.0 * sqrt(dist / _Acc);
     }
     else
     {
-        time(i) =2.0 * t + (dist - 2.0 * d) / _Vel;
+        time(i) = 2.0 * t + (dist - 2.0 * d) / _Vel;
     }
- }
-  return 2*time;
+    
+    // 设置最小时间段，避免数值问题
+    if (time(i) < 0.5) time(i) = 0.5;
+  }
+  
+  // 优化：减小时间裕量系数（原为2.0，现改为1.5）
+  // 这会使轨迹执行更快，但需要确保控制器能跟踪
+  return 1.5 * time;
 }
 
 void visTrajectory(MatrixXd polyCoeff, VectorXd time) {
