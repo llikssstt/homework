@@ -222,10 +222,10 @@ double Astarpath::getHeu(MappingNodePtr node1, MappingNodePtr node2) {
 
     // Tie Breaker: 微小地打破对称性，倾向于深度优先，加快收敛
     // p 值的选择通常设为：1.0 / 期望的最大路径长度 (例如地图尺寸)
-    //double tie_breaker = 1.0 + 1.0 / 10000.0; 
+    double tie_breaker = 1.0 + 1.0 / 2500.0; 
     
-    //return heu * tie_breaker;    
-    return heu;
+    return heu * tie_breaker;    
+
 }
 
 

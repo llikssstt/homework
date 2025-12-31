@@ -107,11 +107,9 @@ SO3ControlNodelet::position_cmd_callback(
   // 调参原则：
   // 1. kx 越大响应越快，但过大会导致超调和振荡
   // 2. kv 提供阻尼，kv ≈ 2*sqrt(kx) 接近临界阻尼
-  // 3. z方向通常需要更大的增益来克服重力
-  //
   // 高增益参数以最小化RMSE：
-  kx_ = Eigen::Vector3d(15.0, 15.0, 12.0);
-  kv_ = Eigen::Vector3d(7.5, 7.5, 6.5);
+  kx_ = Eigen::Vector3d(25.0, 25.0, 16.0);
+  kv_ = Eigen::Vector3d(10, 10, 8);
 
   des_yaw_              = cmd->yaw;
   des_yaw_dot_          = cmd->yaw_dot;

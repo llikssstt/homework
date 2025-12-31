@@ -435,9 +435,9 @@ VectorXd timeAllocation(MatrixXd Path) {
     if (time(i) < 0.5) time(i) = 0.5;
   }
   
-  // 优化：减小时间裕量系数（原为2.0，现改为1.5）
+  // 优化：减小时间裕量系数（原为2.0，现改为1.53）
   // 这会使轨迹执行更快，但需要确保控制器能跟踪
-  return 1.5 * time;
+  return 1.53 * time;
 }
 
 void visTrajectory(MatrixXd polyCoeff, VectorXd time) {
